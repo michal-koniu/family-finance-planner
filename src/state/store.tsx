@@ -1,9 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Household, PlanDocument, Scenario, Settings } from '../engine/types';
 import { exampleDocument } from '../model/defaults';
+import { detectLang, translate, type Lang } from '../i18n';
 import { normalize, sameDocument } from '../model/merge';
 import { deviceName, loadSyncConfig, pull, push, saveSyncConfig, type SyncConfig } from '../sync/github';
 import { syncOnce } from '../sync/syncOnce';
+import { N_ } from '../i18n/mark';
 
 const LOCAL_KEY = 'ffp.doc';
 
@@ -31,6 +33,15 @@ interface Store {
 
 const Ctx = createContext<Store | null>(null);
 
+function savedLang(): Lang {
+  try {
+    const raw = localStorage.getItem('ffp.pref.lang');
+    return raw ? (JSON.parse(raw) as Lang) : detectLang();
+  } catch {
+    return detectLang();
+  }
+}
+
 function loadLocal(): PlanDocument | null {
   try {
     const raw = localStorage.getItem(LOCAL_KEY);
@@ -49,7 +60,7 @@ function saveLocal(d: PlanDocument): void {
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [doc, setDoc] = useState<PlanDocument>(() => loadLocal() ?? exampleDocument());
+  const [doc, setDoc] = useState<PlanDocument>(() => loadLocal() ?? exampleDocument((k) => translate(savedLang(), k)));
   const [syncConfig, setSyncConfigState] = useState<SyncConfig | null>(() => loadSyncConfig());
   const [sync, setSync] = useState<SyncState>(() => (loadSyncConfig() ? { state: 'pending' } : { state: 'off' }));
 
@@ -88,7 +99,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setSync(editVersion.current === startVersion ? { state: 'saved', at: Date.now() } : { state: 'pending' });
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      setSync({ state: 'error', message: navigator.onLine ? message : 'Offline — changes are kept on this device and will sync later.' });
+      setSync({ state: 'error', message: navigator.onLine ? message : N_('Offline — changes are kept on this device and will sync later.') });
     } finally {
       busy.current = false;
       if (editVersion.current !== pushedVersion.current) schedule(2500);
@@ -139,13 +150,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const store = useMemo<Store>(
     () => ({
       doc,
-      updateHousehold: (fn) => edit((d) => ({ ...d, household: { ...fn(d.household), updatedAt: Date.now() } })),
+      // Editing the household or scenarios turns example data into the user's own plan; settings don't.
+      updateHousehold: (fn) => edit((d) => ({ ...d, isExample: false, household: { ...fn(d.household), updatedAt: Date.now() } })),
       updateSettings: (fn) => edit((d) => ({ ...d, settings: { ...fn(d.settings), updatedAt: Date.now() } })),
       updateScenario: (id, fn) =>
-        edit((d) => ({ ...d, scenarios: d.scenarios.map((s) => (s.id === id ? { ...fn(s), updatedAt: Date.now() } : s)) })),
-      addScenario: (s) => edit((d) => ({ ...d, scenarios: [...d.scenarios, { ...s, updatedAt: Date.now() }] })),
+        edit((d) => ({ ...d, isExample: false, scenarios: d.scenarios.map((s) => (s.id === id ? { ...fn(s), updatedAt: Date.now() } : s)) })),
+      addScenario: (s) => edit((d) => ({ ...d, isExample: false, scenarios: [...d.scenarios, { ...s, updatedAt: Date.now() }] })),
       deleteScenario: (id) =>
-        edit((d) => ({ ...d, scenarios: d.scenarios.filter((s) => s.id !== id), deleted: { ...d.deleted, [id]: Date.now() } })),
+        edit((d) => ({ ...d, isExample: false, scenarios: d.scenarios.filter((s) => s.id !== id), deleted: { ...d.deleted, [id]: Date.now() } })),
       replaceDocument: (nd) => {
         const now = Date.now();
         const deleted = { ...doc.deleted };
@@ -180,26 +192,4 @@ export function useStore(): Store {
   return s;
 }
 
-// Per-device view preferences (which scenarios are compared, money view…).
-export function usePref<T>(key: string, initial: T): [T, (v: T) => void] {
-  const [v, setV] = useState<T>(() => {
-    try {
-      const raw = localStorage.getItem(`ffp.pref.${key}`);
-      return raw != null ? (JSON.parse(raw) as T) : initial;
-    } catch {
-      return initial;
-    }
-  });
-  const set = useCallback(
-    (nv: T) => {
-      setV(nv);
-      try {
-        localStorage.setItem(`ffp.pref.${key}`, JSON.stringify(nv));
-      } catch {
-        /* ignore */
-      }
-    },
-    [key],
-  );
-  return [v, set];
-}
+export { usePref } from './prefs';

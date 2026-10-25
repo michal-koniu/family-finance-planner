@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
-import { formatYM } from '../engine/dates';
 import { milestones, totalsUpTo, type MoneyView, type WorthBasis } from '../engine/metrics';
 import type { Household, MonthSnapshot } from '../engine/types';
+import { useI18n } from '../i18n';
 import type { CompareRun } from './ComparePage';
 import { Seg, Select } from './fields';
 import { money, seriesColor } from './format';
@@ -74,10 +74,11 @@ function unionKeys(snaps: (MonthSnapshot | undefined)[], pick: (s: MonthSnapshot
 // ---------------------------------------------------------------------------
 
 export function MomentDetails({ runs, index, view }: { runs: CompareRun[]; index: number; view: MoneyView }) {
+  const { t, label: tl, month } = useI18n();
   const snaps = runs.map((r) => r.result.months[index]);
   const conv = (v: number | undefined, s: MonthSnapshot | undefined) => (s == null || v == null ? null : view === 'real' ? v / s.cpi : v);
   const label = (id: string) => {
-    for (const r of runs) if (r.result.labels[id]) return r.result.labels[id];
+    for (const r of runs) if (r.result.labels[id]) return tl(r.result.labels[id]);
     return id;
   };
   const rows: RowSpec[] = [];
@@ -104,64 +105,64 @@ export function MomentDetails({ runs, index, view }: { runs: CompareRun[]; index
     }
   };
 
-  rows.push({ group: 'Net worth' });
-  rows.push({ label: 'Net worth', values: snaps.map((s) => conv(s?.netWorth, s)), best: 'max', total: true });
-  rows.push({ label: 'After tax & selling costs', values: snaps.map((s) => conv(s?.netWorthAfterTax, s)), best: 'max' });
-  rows.push({ label: 'Savings & investments (liquid)', values: snaps.map((s) => conv(s?.liquid, s)), best: 'max' });
-  section('Savings & investments', (s) => s.accounts);
-  section('Property (market value)', (s) => s.properties);
-  section('Things', (s) => s.goods);
-  section('Debts left to repay', (s) => s.loans, { neg: true });
+  rows.push({ group: t('Net worth') });
+  rows.push({ label: t('Net worth'), values: snaps.map((s) => conv(s?.netWorth, s)), best: 'max', total: true });
+  rows.push({ label: t('After tax & selling costs'), values: snaps.map((s) => conv(s?.netWorthAfterTax, s)), best: 'max' });
+  rows.push({ label: t('Savings & investments (liquid)'), values: snaps.map((s) => conv(s?.liquid, s)), best: 'max' });
+  section(t('Savings & investments'), (s) => s.accounts);
+  section(t('Property (market value)'), (s) => s.properties);
+  section(t('Things'), (s) => s.goods);
+  section(t('Debts left to repay'), (s) => s.loans, { neg: true });
 
   if (index > 0) {
-    section('Income this month', (s) => s.flows.income, { labelFn: (k) => k });
-    rows.push({ label: 'Total income', values: snaps.map((s) => conv(s ? sumOf(s.flows.income) : undefined, s)), total: true });
-    section('Costs this month', (s) => s.flows.expense, { labelFn: (k) => k, neg: true });
-    rows.push({ label: 'Total costs', values: snaps.map((s) => conv(s ? -sumOf(s.flows.expense) : undefined, s)), total: true });
-    rows.push({ group: 'Result this month' });
-    rows.push({ label: 'Income − costs', values: snaps.map((s) => conv(s?.netCashFlow, s)), total: true });
-    rows.push({ label: 'Own money paid at events (purchases, down payments…)', values: snaps.map((s) => conv(s ? -s.eventOutflows : undefined, s)) });
-    rows.push({ label: 'Extra loan repayments', values: snaps.map((s) => conv(s ? -s.debtRepaid : undefined, s)) });
-    rows.push({ label: 'Taxes paid (incl. on sales)', values: snaps.map((s) => conv(s?.taxPaid, s)) });
-    rows.push({ label: 'Loan interest paid', values: snaps.map((s) => conv(s?.interestPaid, s)) });
-    section('One-off costs at events this month', (s) => s.eventCosts, { labelFn: (k) => k });
+    section(t('Income this month'), (s) => s.flows.income, { labelFn: tl });
+    rows.push({ label: t('Total income'), values: snaps.map((s) => conv(s ? sumOf(s.flows.income) : undefined, s)), total: true });
+    section(t('Costs this month'), (s) => s.flows.expense, { labelFn: tl, neg: true });
+    rows.push({ label: t('Total costs'), values: snaps.map((s) => conv(s ? -sumOf(s.flows.expense) : undefined, s)), total: true });
+    rows.push({ group: t('Result this month') });
+    rows.push({ label: t('Income − costs'), values: snaps.map((s) => conv(s?.netCashFlow, s)), total: true });
+    rows.push({ label: t('Own money paid at events (purchases, down payments…)'), values: snaps.map((s) => conv(s ? -s.eventOutflows : undefined, s)) });
+    rows.push({ label: t('Extra loan repayments'), values: snaps.map((s) => conv(s ? -s.debtRepaid : undefined, s)) });
+    rows.push({ label: t('Taxes paid (incl. on sales)'), values: snaps.map((s) => conv(s?.taxPaid, s)) });
+    rows.push({ label: t('Loan interest paid'), values: snaps.map((s) => conv(s?.interestPaid, s)) });
+    section(t('One-off costs at events this month'), (s) => s.eventCosts, { labelFn: tl });
 
-    rows.push({ group: 'Totals from the start until now' });
+    rows.push({ group: t('Totals from the start until now') });
     const tots = runs.map((r) => totalsUpTo(r.result, index, view));
-    rows.push({ label: 'Taxes', values: tots.map((t) => t.taxes), best: 'min' });
-    rows.push({ label: 'Loan interest', values: tots.map((t) => t.interest), best: 'min' });
-    rows.push({ label: 'Rent', values: tots.map((t) => t.rent), best: 'min' });
-    rows.push({ label: 'One-off costs (purchase taxes, fees…)', values: tots.map((t) => t.eventCosts), best: 'min' });
+    rows.push({ label: t('Taxes'), values: tots.map((x) => x.taxes), best: 'min' });
+    rows.push({ label: t('Loan interest'), values: tots.map((x) => x.interest), best: 'min' });
+    rows.push({ label: t('Rent'), values: tots.map((x) => x.rent), best: 'min' });
+    rows.push({ label: t('One-off costs (purchase taxes, fees…)'), values: tots.map((x) => x.eventCosts), best: 'min' });
   }
 
   return (
     <>
       <p className="hint" style={{ marginTop: 0 }}>
-        {view === 'real' ? "All amounts in today's money." : 'All amounts in money of that time (nominal).'} State at the end of the month.
+        {view === 'real' ? t("All amounts in today's money.") : t('All amounts in money of that time (nominal).')} {t('State at the end of the month.')}
       </p>
       <div className="table-wrap">
         <table className="data">
           <thead>
             <tr>
-              <th>{index === 0 ? 'Now' : formatYM(snaps.find(Boolean)?.date ?? '')}</th>
+              <th>{index === 0 ? t('Now') : month(snaps.find(Boolean)?.date ?? '')}</th>
               <ScenarioHeader runs={runs} />
             </tr>
           </thead>
           <tbody>
             <Rows rows={rows} cols={runs.length} />
             <tr className="group">
-              <td colSpan={runs.length + 1}>What happened</td>
+              <td colSpan={runs.length + 1}>{t('What happened')}</td>
             </tr>
             <tr>
-              <td className="indent">This month</td>
+              <td className="indent">{t('This month')}</td>
               {snaps.map((s, i) => (
                 <td key={i} className="wrap">
-                  {s?.events.length ? s.events.map((e, k) => <div key={k}>• {e}</div>) : <span className="muted">—</span>}
+                  {s?.events.length ? s.events.map((e, k) => <div key={k}>• {t(e.k, e.p)}</div>) : <span className="muted">—</span>}
                 </td>
               ))}
             </tr>
             <tr>
-              <td className="indent">Earlier</td>
+              <td className="indent">{t('Earlier')}</td>
               {runs.map((r, i) => {
                 const past = r.result.months.slice(1, index).filter((s) => s.events.length).slice(-6);
                 return (
@@ -169,7 +170,7 @@ export function MomentDetails({ runs, index, view }: { runs: CompareRun[]; index
                     {past.length ? (
                       past.map((s) => (
                         <div key={s.index}>
-                          <span className="muted">{formatYM(s.date)}:</span> {s.events.join('; ')}
+                          <span className="muted">{month(s.date)}:</span> {s.events.map((e) => t(e.k, e.p)).join('; ')}
                         </div>
                       ))
                     ) : (
@@ -201,6 +202,7 @@ export function MilestonesTable({ runs, household, view, basis, horizonYears }: 
   basis: WorthBasis;
   horizonYears: number;
 }) {
+  const { t, month } = useI18n();
   const years = [1, 5, 10, 15, 20, 25, 30, 40, 50, 60].filter((y) => y < horizonYears);
   years.push(horizonYears);
   const ms = runs.map((r) => milestones(r.result, household, view, basis, years));
@@ -212,35 +214,44 @@ export function MilestonesTable({ runs, household, view, basis, horizonYears }: 
       ))}
     </tr>
   );
-  const rows: RowSpec[] = [{ group: `Net worth${basis === 'afterTax' ? ' after tax & selling costs' : ''}` }];
-  years.forEach((y, k) => rows.push({ label: `In ${y} year${y > 1 ? 's' : ''}`, values: ms.map((m) => m.netWorthAt[k].value), best: 'max', total: y === horizonYears }));
-  if (basis === 'market') rows.push({ label: 'At the end, after tax & selling costs', values: ms.map((m) => m.endAfterTax), best: 'max' });
-  rows.push({ group: 'Safety' });
-  rows.push({ label: 'Lowest savings & investments', values: ms.map((m) => m.lowestLiquid.value), best: 'max' });
+  const rows: RowSpec[] = [{ group: basis === 'afterTax' ? t('Net worth after tax & selling costs') : t('Net worth') }];
+  years.forEach((y, k) => rows.push({ label: t('In {years} years', { years: y }), values: ms.map((m) => m.netWorthAt[k].value), best: 'max', total: y === horizonYears }));
+  if (basis === 'market') rows.push({ label: t('At the end, after tax & selling costs'), values: ms.map((m) => m.endAfterTax), best: 'max' });
+  rows.push({ group: t('Safety') });
+  rows.push({ label: t('Lowest savings & investments'), values: ms.map((m) => m.lowestLiquid.value), best: 'max' });
   const totalsRows: RowSpec[] = [
-    { group: 'Paid over the whole plan' },
-    { label: 'Taxes', values: ms.map((m) => m.totals.taxes), best: 'min' },
-    { label: 'Loan interest', values: ms.map((m) => m.totals.interest), best: 'min' },
-    { label: 'Rent', values: ms.map((m) => m.totals.rent), best: 'min' },
-    { label: 'One-off costs (purchase taxes, fees…)', values: ms.map((m) => m.totals.eventCosts), best: 'min' },
+    { group: t('Paid over the whole plan') },
+    { label: t('Taxes'), values: ms.map((m) => m.totals.taxes), best: 'min' },
+    { label: t('Loan interest'), values: ms.map((m) => m.totals.interest), best: 'min' },
+    { label: t('Rent'), values: ms.map((m) => m.totals.rent), best: 'min' },
+    { label: t('One-off costs (purchase taxes, fees…)'), values: ms.map((m) => m.totals.eventCosts), best: 'min' },
   ];
   return (
     <div className="table-wrap">
       <table className="data">
         <thead>
           <tr>
-            <th>{view === 'real' ? "Today's money" : 'Future money'}</th>
+            <th>{view === 'real' ? t("Today's money") : t('Future money')}</th>
             <ScenarioHeader runs={runs} />
           </tr>
         </thead>
         <tbody>
           <Rows rows={rows} cols={runs.length} />
-          {textRow('…reached in', ms.map((m) => (m.lowestLiquid.date ? formatYM(m.lowestLiquid.date) : '—')))}
-          {textRow('Money runs out', ms.map((m) => (m.firstShortfall ? <span style={{ color: 'var(--critical)' }}>⚠ {formatYM(m.firstShortfall)}</span> : 'never')))}
+          {textRow(t('…reached in'), ms.map((m) => (m.lowestLiquid.date ? month(m.lowestLiquid.date) : '—')))}
+          {textRow(t('Money runs out'), ms.map((m) => (m.firstShortfall ? <span style={{ color: 'var(--critical)' }}>⚠ {month(m.firstShortfall)}</span> : t('never'))))}
           <tr className="group">
-            <td colSpan={runs.length + 1}>Retirement</td>
+            <td colSpan={runs.length + 1}>{t('Retirement')}</td>
           </tr>
-          {household.people.map((p) => textRow(p.name, ms.map((m) => m.retirement.find((x) => x.personId === p.id)?.label ?? '—')))}
+          {household.people.map((p) =>
+            textRow(
+              p.name,
+              ms.map((m) => {
+                const x = m.retirement.find((y) => y.personId === p.id);
+                if (!x) return '—';
+                return x.date ? t('{date} (age {age})', { date: x.date, age: x.age ?? '' }) : t('not within the plan');
+              }),
+            ),
+          )}
           <Rows rows={totalsRows} cols={runs.length} />
         </tbody>
       </table>
@@ -251,6 +262,7 @@ export function MilestonesTable({ runs, household, view, basis, horizonYears }: 
 // ---------------------------------------------------------------------------
 
 export function FullTable({ runs, view, currency }: { runs: CompareRun[]; view: MoneyView; currency: string }) {
+  const { t, label: tl, month } = useI18n();
   const [sid, setSid] = useState(runs[0].scenario.id);
   const [gran, setGran] = useState<'year' | 'month'>('year');
   const run = runs.find((r) => r.scenario.id === sid) ?? runs[0];
@@ -284,7 +296,7 @@ export function FullTable({ runs, view, currency }: { runs: CompareRun[]; view: 
       p.net += s.netCashFlow * f;
       p.outflows += s.eventOutflows * f;
       p.repaid += s.debtRepaid * f;
-      for (const e of s.events) p.events.push(gran === 'year' ? `${formatYM(s.date)}: ${e}` : e);
+      for (const e of s.events) p.events.push(gran === 'year' ? `${month(s.date)}: ${t(e.k, e.p)}` : t(e.k, e.p));
     }
     return p;
   };
@@ -294,7 +306,7 @@ export function FullTable({ runs, view, currency }: { runs: CompareRun[]; view: 
     const f = k(s);
     const p = period(i, j);
     return {
-      date: i === 0 ? 'Now' : formatYM(s.date),
+      date: i === 0 ? t('Now') : month(s.date),
       netWorth: s.netWorth * f,
       afterTax: s.netWorthAfterTax * f,
       liquid: s.liquid * f,
@@ -315,28 +327,28 @@ export function FullTable({ runs, view, currency }: { runs: CompareRun[]; view: 
     };
   });
 
-  const lbl = (id: string) => r.labels[id] ?? id;
+  const lbl = (id: string) => tl(r.labels[id] ?? id);
 
   const downloadCsv = () => {
     const head = [
-      'Date',
-      'Net worth',
-      'Net worth after tax',
-      'Liquid',
+      t('Date'),
+      t('Net worth'),
+      t('After tax'),
+      t('Liquid'),
       ...accountIds.map(lbl),
       ...propIds.map(lbl),
       ...goodIds.map(lbl),
-      ...loanIds.map((id) => `Debt: ${lbl(id)}`),
-      ...incomeKeys.map((x) => `Income: ${x}`),
-      ...expenseKeys.map((x) => `Cost: ${x}`),
-      'Total income',
-      'Total costs',
-      'Income minus costs',
-      'Paid at events',
-      'Extra loan repayments',
-      'Taxes',
-      'Loan interest',
-      'Events',
+      ...loanIds.map((id) => t('Debt: {name}', { name: lbl(id) })),
+      ...incomeKeys.map((x) => t('Income: {name}', { name: tl(x) })),
+      ...expenseKeys.map((x) => t('Cost: {name}', { name: tl(x) })),
+      t('Total income'),
+      t('Total costs'),
+      t('Income − costs'),
+      t('Paid at events'),
+      t('Extra loan repayments'),
+      t('Taxes'),
+      t('Loan interest'),
+      t('Events'),
     ];
     const q = (v: string) => `"${v.replace(/"/g, '""')}"`;
     const n = (v: number) => String(Math.round(v));
@@ -377,32 +389,34 @@ export function FullTable({ runs, view, currency }: { runs: CompareRun[]; view: 
     <div className="stack">
       <div className="toolbar">
         <div style={{ minWidth: 220 }}>
-          <Select label="Scenario" value={run.scenario.id} onChange={setSid} options={runs.map((x) => ({ value: x.scenario.id, label: x.scenario.name }))} />
+          <Select label={t('Scenario')} value={run.scenario.id} onChange={setSid} options={runs.map((x) => ({ value: x.scenario.id, label: x.scenario.name }))} />
         </div>
         <Seg
           value={gran}
           onChange={setGran}
           options={[
-            { value: 'year', label: 'Years' },
-            { value: 'month', label: 'Months' },
+            { value: 'year', label: t('Years') },
+            { value: 'month', label: t('Months') },
           ]}
         />
         <button type="button" className="btn" onClick={downloadCsv}>
-          ⬇ CSV (Excel / Sheets)
+          ⬇ {t('CSV (Excel / Sheets)')}
         </button>
       </div>
       <small className="hint">
-        Balances at the end of each {gran}; income, costs, taxes and interest summed over the {gran}. {view === 'real' ? "Today's money" : 'Nominal money'}, {currency}.
-        The CSV also lists every income and cost item.
+        {gran === 'year'
+          ? t('Balances at the end of each year; income, costs, taxes and interest summed over the year.')
+          : t('Balances at the end of each month; income, costs, taxes and interest for that month.')}{' '}
+        {view === 'real' ? t("Today's money") : t('Nominal money')}, {currency}. {t('The CSV also lists every income and cost item.')}
       </small>
       <div className="table-wrap" style={{ maxHeight: '70vh' }}>
         <table className="data">
           <thead>
             <tr>
-              <th>{gran === 'year' ? 'Year ending' : 'Month'}</th>
-              <th>Net worth</th>
-              <th>After tax</th>
-              <th>Liquid</th>
+              <th>{gran === 'year' ? t('Year ending') : t('Month')}</th>
+              <th>{t('Net worth')}</th>
+              <th>{t('After tax')}</th>
+              <th>{t('Liquid')}</th>
               {accountIds.map((id) => (
                 <th key={id}>{lbl(id)}</th>
               ))}
@@ -415,14 +429,14 @@ export function FullTable({ runs, view, currency }: { runs: CompareRun[]; view: 
               {loanIds.map((id) => (
                 <th key={id}>{lbl(id)}</th>
               ))}
-              <th>Income</th>
-              <th>Costs</th>
-              <th>Income − costs</th>
-              <th>Paid at events</th>
-              <th>Extra repayments</th>
-              <th>Taxes</th>
-              <th>Interest</th>
-              <th style={{ textAlign: 'left' }}>Events</th>
+              <th>{t('Income')}</th>
+              <th>{t('Costs')}</th>
+              <th>{t('Income − costs')}</th>
+              <th>{t('Paid at events')}</th>
+              <th>{t('Extra repayments')}</th>
+              <th>{t('Taxes')}</th>
+              <th>{t('Interest')}</th>
+              <th style={{ textAlign: 'left' }}>{t('Events')}</th>
             </tr>
           </thead>
           <tbody>

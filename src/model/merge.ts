@@ -28,6 +28,8 @@ export function mergeDocuments(a: PlanDocument, b: PlanDocument): PlanDocument {
     settings: b.settings.updatedAt > a.settings.updatedAt ? b.settings : a.settings,
     scenarios,
     deleted,
+    // Once either copy holds real data, the merged plan is real data.
+    isExample: !!(a.isExample && b.isExample),
   };
 }
 
@@ -44,7 +46,17 @@ export function normalize(raw: unknown): PlanDocument {
     ...({ notes: '', excludedCommon: [], events: [], colorSlot: i % 8, updatedAt: 0 } as const),
     ...s,
   })) as PlanDocument['scenarios'];
-  return { schemaVersion: SCHEMA_VERSION, household: hh, settings, scenarios, deleted: d.deleted ?? {} };
+  const doc: PlanDocument = { schemaVersion: SCHEMA_VERSION, household: hh, settings, scenarios, deleted: d.deleted ?? {} };
+  doc.isExample = typeof d.isExample === 'boolean' ? d.isExample : looksLikeExample(doc);
+  return doc;
+}
+
+/** Files saved before the isExample flag existed: recognise untouched example data by its fingerprint. */
+function looksLikeExample(d: PlanDocument): boolean {
+  const ids = new Set(d.scenarios.map((s) => s.id));
+  const me = d.household.people.find((p) => p.id === 'p-me');
+  const btc = d.household.accounts.find((a) => a.id === 'acc-btc');
+  return ['sc-rent', 'sc-cash-flat', 'sc-mortgage'].every((id) => ids.has(id)) && me?.netSalary === 14000 && btc?.value === 225000;
 }
 
 /** JSON with object keys sorted, so key order (which normalize() changes) doesn't count as a difference. */

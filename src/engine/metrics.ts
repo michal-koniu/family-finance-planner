@@ -1,4 +1,4 @@
-import { ageAt, formatYM } from './dates';
+import { ageAt } from './dates';
 import type { Household, MonthSnapshot, SimulationResult } from './types';
 
 export type MoneyView = 'real' | 'nominal';
@@ -37,7 +37,8 @@ export function totalsUpTo(r: SimulationResult, upTo: number, view: MoneyView): 
 export interface Milestones {
   netWorthAt: { years: number; value: number | null }[];
   endAfterTax: number;
-  retirement: { personId: string; name: string; label: string }[];
+  /** Month and age of retirement, or null when it doesn't happen within the plan. */
+  retirement: { personId: string; name: string; date: string | null; age: number | null }[];
   lowestLiquid: { value: number; date: string };
   firstShortfall: string | null;
   totals: Totals;
@@ -57,9 +58,9 @@ export function milestones(
   });
   const retirement = household.people.map((p) => {
     const m = r.retirements[p.id];
-    if (m == null) return { personId: p.id, name: p.name, label: 'not within plan' };
+    if (m == null) return { personId: p.id, name: p.name, date: null, age: null };
     const s = r.months[m];
-    return { personId: p.id, name: p.name, label: `${formatYM(s.date)} (age ${ageAt(p.birth, s.date)})` };
+    return { personId: p.id, name: p.name, date: s.date, age: ageAt(p.birth, s.date) };
   });
   let lowest = { value: Infinity, date: '' };
   let firstShortfall: string | null = null;
