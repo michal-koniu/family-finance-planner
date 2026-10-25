@@ -159,7 +159,7 @@ describe('taxes on investments', () => {
       scenario: scenario(),
     });
     expect(r.months[3].shortfall).toBeCloseTo(3000, 6);
-    expect(r.warnings.some((w) => w.includes('Money runs out'))).toBe(true);
+    expect(r.warnings.some((w) => w.k.includes('Money runs out'))).toBe(true);
   });
 });
 
@@ -433,8 +433,8 @@ describe('review regressions', () => {
       settings: settings({ horizonYears: 1 }),
       scenario: scenario(),
     });
-    expect(r.warnings.filter((w) => w.includes('Money runs out'))).toHaveLength(1);
-    expect(r.warnings[0]).toContain('12 month');
+    expect(r.warnings.filter((w) => w.k.includes('Money runs out'))).toHaveLength(1);
+    expect(r.warnings[0].p?.months).toBe(12);
   });
 
   it('a child born before the plan keeps its age and costs no birth costs', () => {
@@ -456,7 +456,7 @@ describe('review regressions', () => {
     expect(r.months.find((s) => s.date === '2027-06')!.flows.expense['Kid: Ola']).toBe(1800); // age 7
     expect(r.months.find((s) => s.date === '2038-05')!.flows.income['Child benefit']).toBe(800); // age 17
     expect(r.months.find((s) => s.date === '2038-06')!.flows.income['Child benefit']).toBeUndefined(); // 18
-    expect(r.warnings.some((w) => w.includes('before the plan start'))).toBe(true);
+    expect(r.warnings.some((w) => w.k.includes('before the plan start'))).toBe(true);
   });
 
   it('lump sums landing in cash are invested by the savings split', () => {

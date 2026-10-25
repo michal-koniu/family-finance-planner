@@ -38,3 +38,21 @@ describe('normalize', () => {
     expect(d.household.accounts.length).toBeGreaterThan(0);
   });
 });
+
+describe('example-data flag', () => {
+  it('example data is flagged; merging with real data clears the flag', () => {
+    const ex = exampleDocument();
+    expect(ex.isExample).toBe(true);
+    const real = { ...structuredClone(ex), isExample: false };
+    expect(mergeDocuments(ex, real).isExample).toBe(false);
+    expect(mergeDocuments(ex, structuredClone(ex)).isExample).toBe(true);
+  });
+
+  it('recognises example data saved before the flag existed', () => {
+    const legacy = structuredClone(exampleDocument()) as Partial<ReturnType<typeof exampleDocument>>;
+    delete legacy.isExample;
+    expect(normalize(legacy).isExample).toBe(true);
+    legacy.household!.people[0].netSalary = 15000;
+    expect(normalize(legacy).isExample).toBe(false);
+  });
+});

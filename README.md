@@ -15,7 +15,9 @@ exact result of each choice side by side.
 - **Inflation** (optional) works the realistic way: compounded yearly; cash loses value; salaries, rent, costs and
   property prices rise; loan installments stay fixed.
 - **Data** syncs between your devices through a private GitHub repository. It works on laptop and iPhone (add it to
-  the home screen).
+  the home screen). The Compare tab shows whether you're looking at the built-in example data or your own plan.
+- **Languages**: English, Polish, Russian and Spanish (EN/PL/RU/ES switch in the top bar or Settings → Display).
+  Light, dark or automatic theme. Both are remembered per device.
 
 Setup (free hosting, sync, iPhone): **[docs/SETUP.md](docs/SETUP.md)**
 How the numbers are calculated: **[docs/MODEL.md](docs/MODEL.md)**
@@ -36,3 +38,5 @@ Code layout:
 - `src/sync/`: GitHub storage and the sync round
 - `src/state/`: app state, local persistence, background sync
 - `src/ui/`: React screens
+- `src/i18n/`: translations. The English text is the key; `pl.ts`, `ru.ts` and `es.ts` map it to each language.
+  `npm test` fails if any text the app shows is missing a translation or has mismatched `{placeholders}`.

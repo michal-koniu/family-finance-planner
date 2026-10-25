@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CartesianGrid, Line, LineChart, ReferenceDot, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { addMonths, formatYM, isValidYM, monthsBetween, parseYM } from '../engine/dates';
+import { addMonths, isValidYM, monthsBetween, parseYM } from '../engine/dates';
 import { inView, worth, type MoneyView, type WorthBasis } from '../engine/metrics';
 import { simulate } from '../engine/simulate';
 import type { Scenario, SimulationResult } from '../engine/types';
-import { useStore, usePref } from '../state/store';
+import { useI18n } from '../i18n';
+import { usePref } from '../state/prefs';
+import { useStore } from '../state/store';
 import { FullTable, MilestonesTable, MomentDetails } from './CompareTables';
 import { Num, Seg } from './fields';
 import { compact, money, seriesColor } from './format';
@@ -24,8 +26,34 @@ export interface CompareRun {
   result: SimulationResult;
 }
 
-export function ComparePage() {
+type Tab = 'compare' | 'scenarios' | 'household' | 'settings';
+
+/** Tells at a glance whether the numbers are the built-in example or the family's own plan. */
+function DataStatus({ onOpen }: { onOpen: (t: Tab) => void }) {
+  const { doc, sync } = useStore();
+  const { t } = useI18n();
+  const where = sync.state === 'off' ? t('stored only on this device') : t('synced with GitHub');
+  if (doc.isExample)
+    return (
+      <div className="notice data-status">
+        <span className="badge example">📋 {t('Example data')}</span>
+        <span>{t('These are made-up numbers to show how the app works. Enter your own in Household and Scenarios.')}</span>
+        <button type="button" className="btn small" onClick={() => onOpen('household')}>
+          {t('Open Household')}
+        </button>
+      </div>
+    );
+  return (
+    <div className="data-status">
+      <span className="badge own">✓ {t('Your own data')}</span>
+      <span className="muted">{where}</span>
+    </div>
+  );
+}
+
+export function ComparePage({ onOpen }: { onOpen: (t: Tab) => void }) {
   const { doc, updateSettings } = useStore();
+  const { t, month } = useI18n();
   const { household, settings, scenarios } = doc;
   const [selected, setSelected] = usePref<string[] | null>('compare', null);
   const [view, setView] = usePref<MoneyView>('view', 'real');
@@ -75,8 +103,9 @@ export function ComparePage() {
 
   return (
     <div>
+      <DataStatus onOpen={onOpen} />
       <div className="card">
-        <div className="legend" aria-label="Scenarios to compare">
+        <div className="legend" aria-label={t('Scenarios to compare')}>
           {scenarios.map((s) => {
             const on = active.includes(s);
             return (
@@ -92,21 +121,21 @@ export function ComparePage() {
             value={view}
             onChange={setView}
             options={[
-              { value: 'real', label: "Today's money" },
-              { value: 'nominal', label: 'Future money' },
+              { value: 'real', label: t("Today's money") },
+              { value: 'nominal', label: t('Future money') },
             ]}
           />
           <Seg
             value={basis}
             onChange={setBasis}
             options={[
-              { value: 'market', label: 'Market value' },
-              { value: 'afterTax', label: 'After tax & selling costs' },
+              { value: 'market', label: t('Market value') },
+              { value: 'afterTax', label: t('After tax & selling costs') },
             ]}
           />
           <label className="check">
             <input type="checkbox" checked={settings.inflationEnabled} onChange={(e) => updateSettings((s) => ({ ...s, inflationEnabled: e.target.checked }))} />
-            Inflation
+            {t('Inflation')}
           </label>
           {settings.inflationEnabled && (
             <div style={{ width: 90 }}>
@@ -116,14 +145,14 @@ export function ComparePage() {
         </div>
 
         <h3 style={{ marginBottom: 4 }}>
-          Net worth{' '}
+          {t('Net worth')}{' '}
           <small className="muted" style={{ fontWeight: 400 }}>
-            {view === 'real' ? "in today's money" : 'in future (nominal) money'}, {settings.currency}
-            {basis === 'afterTax' ? ', after tax & selling costs' : ''}
+            {view === 'real' ? t("in today's money") : t('in future (nominal) money')}, {settings.currency}
+            {basis === 'afterTax' ? `, ${t('after tax & selling costs')}` : ''}
           </small>
         </h3>
         {runs.length === 0 ? (
-          <p className="muted">Pick at least one scenario above.</p>
+          <p className="muted">{t('Pick at least one scenario above.')}</p>
         ) : (
           <div className="chart-box">
             <ResponsiveContainer width="100%" height="100%">
@@ -140,7 +169,7 @@ export function ComparePage() {
                   type="number"
                   domain={[0, total]}
                   ticks={ticks}
-                  tickFormatter={(i: number) => (i === 0 ? 'Now' : String(yearOf(i)))}
+                  tickFormatter={(i: number) => (i === 0 ? t('Now') : String(yearOf(i)))}
                   stroke="var(--axis)"
                   tick={{ fill: 'var(--muted)', fontSize: 12 }}
                   tickLine={false}
@@ -161,7 +190,7 @@ export function ComparePage() {
                     const i = Number(label);
                     return (
                       <div className="tooltip">
-                        <b>{formatYM(addMonths(firstDate, i))}</b>
+                        <b>{month(addMonths(firstDate, i))}</b>
                         {[...runs]
                           .sort((a, b) => Number(data[i]?.[b.scenario.id] ?? 0) - Number(data[i]?.[a.scenario.id] ?? 0))
                           .map((r) => (
@@ -173,13 +202,13 @@ export function ComparePage() {
                               </div>
                               {r.result.months[i]?.events.map((ev, k) => (
                                 <div className="t-ev" key={k}>
-                                  • {ev}
+                                  • {t(ev.k, ev.p)}
                                 </div>
                               ))}
                             </div>
                           ))}
                         <div className="muted" style={{ marginTop: 4 }}>
-                          Click to see details
+                          {t('Click to see details')}
                         </div>
                       </div>
                     );
@@ -232,17 +261,17 @@ export function ComparePage() {
           </div>
         )}
         <div className="moment">
-          <button type="button" className="btn small" onClick={() => setMoment(moment - 12)} aria-label="One year back">
+          <button type="button" className="btn small" onClick={() => setMoment(moment - 12)} aria-label={t('One year back')}>
             «
           </button>
-          <button type="button" className="btn small" onClick={() => setMoment(moment - 1)} aria-label="One month back">
+          <button type="button" className="btn small" onClick={() => setMoment(moment - 1)} aria-label={t('One month back')}>
             ◀
           </button>
-          <input type="range" min={0} max={total} value={moment} onChange={(e) => setMoment(Number(e.target.value))} aria-label="Moment" />
-          <button type="button" className="btn small" onClick={() => setMoment(moment + 1)} aria-label="One month forward">
+          <input type="range" min={0} max={total} value={moment} onChange={(e) => setMoment(Number(e.target.value))} aria-label={t('Moment')} />
+          <button type="button" className="btn small" onClick={() => setMoment(moment + 1)} aria-label={t('One month forward')}>
             ▶
           </button>
-          <button type="button" className="btn small" onClick={() => setMoment(moment + 12)} aria-label="One year forward">
+          <button type="button" className="btn small" onClick={() => setMoment(moment + 12)} aria-label={t('One year forward')}>
             »
           </button>
           <input
@@ -253,14 +282,14 @@ export function ComparePage() {
             onChange={(e) => isValidYM(e.target.value) && setMomentDate(e.target.value)}
           />
         </div>
-        <small className="hint">Dots mark events (hover or tap for what happened). Click the chart or use the slider to pick a moment.</small>
+        <small className="hint">{t('Dots mark events (hover or tap for what happened). Click the chart or use the slider to pick a moment.')}</small>
       </div>
 
       {warnings.length > 0 && (
         <div className="notice">
           {warnings.map(({ s, w }, k) => (
             <div key={k}>
-              ⚠ <b>{s.name}:</b> {w}
+              ⚠ <b>{s.name}:</b> {t(w.k, w.p)}
             </div>
           ))}
         </div>
@@ -270,13 +299,13 @@ export function ComparePage() {
         <div className="card">
           <div className="subtabs">
             <button type="button" className={tab === 'moment' ? 'on' : ''} onClick={() => setTab('moment')}>
-              Moment: {formatYM(addMonths(firstDate, moment))}
+              {t('Moment: {date}', { date: addMonths(firstDate, moment) })}
             </button>
             <button type="button" className={tab === 'milestones' ? 'on' : ''} onClick={() => setTab('milestones')}>
-              Milestones
+              {t('Milestones')}
             </button>
             <button type="button" className={tab === 'table' ? 'on' : ''} onClick={() => setTab('table')}>
-              Full table
+              {t('Full table')}
             </button>
           </div>
           {tab === 'moment' && <MomentDetails runs={runs} index={moment} view={view} />}

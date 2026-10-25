@@ -296,10 +296,18 @@ export interface PlanDocument {
   scenarios: Scenario[];
   /** Deleted scenario ids with deletion time, so deletions survive a merge with another device. */
   deleted: Record<string, number>;
+  /** True while this is the built-in example data nobody has edited yet. */
+  isExample?: boolean;
 }
 
 // ---------------------------------------------------------------------------
 // Simulation output
+
+/** A translatable message: English template with {placeholders} (also the translation key) + values. */
+export interface LogEntry {
+  k: string;
+  p?: Record<string, string | number>;
+}
 
 export interface MonthFlows {
   income: Record<string, number>;
@@ -335,7 +343,7 @@ export interface MonthSnapshot {
   liquid: number;
   /** Cash that had to be borrowed because every account ran dry. */
   shortfall: number;
-  events: string[];
+  events: LogEntry[];
 }
 
 export interface SimulationResult {
@@ -344,5 +352,5 @@ export interface SimulationResult {
   /** Names for every id that appears in the snapshots. */
   labels: Record<string, string>;
   retirements: Record<string, number>; // personId -> month index
-  warnings: string[];
+  warnings: LogEntry[];
 }

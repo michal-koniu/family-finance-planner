@@ -1,6 +1,7 @@
 // Stores the plan as one JSON file in a private GitHub repository, through the
 // GitHub REST "contents" API. Every save is a commit, so the repo keeps full history.
 import type { PlanDocument } from '../engine/types';
+import { N_ } from '../i18n/mark';
 
 export interface SyncConfig {
   owner: string;
@@ -69,11 +70,11 @@ function fromBase64(b64: string): string {
 }
 
 function explain(status: number): string {
-  if (status === 401) return 'GitHub rejected the access key (expired or mistyped).';
-  if (status === 403) return 'The access key is not allowed to read/write this repository, or GitHub rate-limited us.';
-  if (status === 404) return 'Repository or branch not found — check owner, repository name and that the key can access it.';
-  if (status === 409 || status === 422) return 'Someone else saved at the same time.';
-  return `GitHub returned an error (${status}).`;
+  if (status === 401) return N_('GitHub rejected the access key (expired or mistyped).');
+  if (status === 403) return N_('The access key is not allowed to read/write this repository, or GitHub rate-limited us.');
+  if (status === 404) return N_('Repository or branch not found — check owner, repository name and that the key can access it.');
+  if (status === 409 || status === 422) return N_('Someone else saved at the same time.');
+  return N_('GitHub returned an unexpected error.');
 }
 
 /** Returns the stored document and its version id (sha), or null if the file doesn't exist yet. */
