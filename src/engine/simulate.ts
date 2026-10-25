@@ -13,6 +13,7 @@ import type {
   Scenario,
   Settings,
   SimulationResult,
+  LogEntry,
   Trigger,
   YearMonth,
 } from './types';
@@ -123,9 +124,9 @@ export function simulate({ household, settings, scenario }: SimulationInput): Si
   const cgt = settings.capitalGainsTaxRate;
 
   const labels: Record<string, string> = {};
-  const warnings: string[] = [];
-  const warn = (w: string) => {
-    if (!warnings.includes(w)) warnings.push(w);
+  const warnings: LogEntry[] = [];
+  const warn = (w: LogEntry) => {
+    if (!warnings.some((x) => x.k === w.k && JSON.stringify(x.p) === JSON.stringify(w.p))) warnings.push(w);
   };
 
   // ----- initial state
@@ -156,7 +157,7 @@ export function simulate({ household, settings, scenario }: SimulationInput): Si
       schedule: [],
     });
     labels[cashId || '__cash'] = 'Cash';
-    warn('No cash account selected in Household → Money rules; using an empty one.');
+    warn(msg('No cash account selected in Household → Money rules; using an empty one.'));
   }
   const cash = accounts.get(cashId) ?? accounts.get('__cash')!;
 
@@ -216,7 +217,7 @@ export function simulate({ household, settings, scenario }: SimulationInput): Si
 
   for (const e of events) {
     if (e.trigger.type === 'date' && e.trigger.date < start) {
-      warn(`"${e.name}" is dated before the plan start; it happens in the first month.`);
+      warn(msg('“{name}” is dated before the plan start; it happens in the first month.', { name: e.name }));
     }
   }
 
@@ -232,7 +233,7 @@ export function simulate({ household, settings, scenario }: SimulationInput): Si
     const prev = months[m - 1];
     const fl = emptyFlows();
     const eventCosts: Record<string, number> = {};
-    const eventLog: string[] = [];
+    const eventLog: LogEntry[] = [];
     let taxPaid = 0;
     let interestPaid = 0;
     let debtRepaid = 0;
@@ -292,7 +293,7 @@ export function simulate({ household, settings, scenario }: SimulationInput): Si
       const age = ageAt(p.birth, date);
       if (!p.retired && p.retirementAge != null && age >= p.retirementAge) {
         retire(p, m);
-        eventLog.push(`${p.name} retires at ${age}`);
+        eventLog.push(msg('{name} retires at {age}', { name: p.name, age }));
       }
       if (!p.retired) {
         const salary = p.salaryBase * cpi * Math.pow(1 + p.realGrowth, (m - p.salaryBaseIndex) / 12);
@@ -370,7 +371,7 @@ export function simulate({ household, settings, scenario }: SimulationInput): Si
       if (l.monthsLeft <= 0) continue;
       l.monthsLeft -= 1;
       if (l.monthsLeft === 0) {
-        eventLog.push(`${l.name} lease ended`);
+        eventLog.push(msg('{name}: lease ended', { name: l.name }));
         if (l.buyout) {
           taxPaid += payFrom(l.buyoutAmount, []).tax;
           const id = `${l.id}:owned`;
@@ -383,7 +384,7 @@ export function simulate({ household, settings, scenario }: SimulationInput): Si
             sourceEvent: l.sourceEvent,
           });
           labels[id] = l.name;
-          eventLog.push(`${l.name} bought out for ${fmt(l.buyoutAmount)}`);
+          eventLog.push(msg('{name} bought out for {amount}', { name: l.name, amount: fmt(l.buyoutAmount) }));
         }
       }
     }
@@ -426,29 +427,27 @@ export function simulate({ household, settings, scenario }: SimulationInput): Si
           const from = accounts.get(e.from);
           const to = accounts.get(e.to);
           if (!from || !to) {
-            warn(`"${e.name}": account not found.`);
+            warn(msg('“{name}”: account not found.', { name: e.name }));
             return;
           }
           const gross = Math.min(from.value, amountOf(e.amount, from.value, c));
           if (gross <= EPS) {
-            eventLog.push(`${e.name}: nothing to move`);
+            eventLog.push(msg('{name}: nothing to move', { name: e.name }));
             return;
           }
           const { net, tax, fee } = sell(from, gross, clamp01(e.feePct));
           taxPaid += tax;
           addEventCost('Transaction fees', fee);
           deposit(to, net);
-          eventLog.push(
-            `${e.name}: ${fmt(gross)} from ${from.name} → ${fmt(net)} into ${to.name}` +
-              (tax > EPS ? ` (tax ${fmt(tax)})` : ''),
-          );
+          eventLog.push(msg('{name}: {gross} from {from} → {net} into {to}', { name: e.name, gross: fmt(gross), from: from.name, net: fmt(net), to: to.name }));
+          if (tax > EPS) eventLog.push(msg('Capital gains tax paid: {tax}', { tax: fmt(tax) }));
           return;
         }
         case 'setReturn': {
           const a = accounts.get(e.accountId);
           if (a) {
             a.rate = e.rate;
-            eventLog.push(`${e.name}: ${a.name} return now ${(e.rate * 100).toFixed(1)}%/yr`);
+            eventLog.push(msg('{name}: {account} now earns {rate} a year', { name: e.name, account: a.name, rate: pctText(e.rate, 1) }));
           }
           return;
         }
@@ -484,17 +483,17 @@ export function simulate({ household, settings, scenario }: SimulationInput): Si
           }
           if (e.endsRent) rent = 0;
           eventLog.push(
-            `Bought ${e.property.name} for ${fmt(price)}` +
-              (principal > EPS ? `, mortgage ${fmt(principal)}` : '') +
-              `, own money ${fmt(own)}` +
-              (tax > EPS ? ` (tax on sold investments ${fmt(tax)})` : ''),
+            principal > EPS
+              ? msg('Bought {property} for {price}: mortgage {loan}, own money {own}', { property: e.property.name, price: fmt(price), loan: fmt(principal), own: fmt(own) })
+              : msg('Bought {property} for {price}, own money {own}', { property: e.property.name, price: fmt(price), own: fmt(own) }),
           );
+          if (tax > EPS) eventLog.push(msg('Tax on investments sold to pay for it: {tax}', { tax: fmt(tax) }));
           return;
         }
         case 'sellProperty': {
           const p = properties.get(e.propertyId);
           if (!p) {
-            warn(`"${e.name}": property not found (maybe not bought yet in this scenario).`);
+            warn(msg('“{name}”: property not found (maybe not bought yet in this scenario).', { name: e.name }));
             return;
           }
           const sellCost = p.value * e.sellCostPct;
@@ -515,12 +514,10 @@ export function simulate({ household, settings, scenario }: SimulationInput): Si
           const to = accounts.get(e.to) ?? cash;
           if (proceeds >= 0) deposit(to, proceeds);
           else taxPaid += payFrom(-proceeds, []).tax;
-          eventLog.push(
-            `Sold ${p.name} for ${fmt(p.value)}` +
-              (repaid > EPS ? `, repaid mortgage ${fmt(repaid)}` : '') +
-              (tax > EPS ? `, gain tax ${fmt(tax)}` : exempt ? ', gain tax-free' : '') +
-              ` → ${fmt(proceeds)} into ${to.name}`,
-          );
+          eventLog.push(msg('Sold {property} for {price} → {net} into {to}', { property: p.name, price: fmt(p.value), net: fmt(proceeds), to: to.name }));
+          if (repaid > EPS) eventLog.push(msg('Mortgage repaid from the sale: {amount}', { amount: fmt(repaid) }));
+          if (tax > EPS) eventLog.push(msg('Property gain tax: {tax}', { tax: fmt(tax) }));
+          else if (exempt) eventLog.push(msg('Gain is tax-free (exemption period passed)'));
           return;
         }
         case 'purchase':
@@ -533,15 +530,15 @@ export function simulate({ household, settings, scenario }: SimulationInput): Si
           if (born >= mi) {
             addEventCost(`Birth: ${e.childName}`, e.birthCost * c);
             if (e.birthCost > 0) taxPaid += payFrom(e.birthCost * c, []).tax;
-            eventLog.push(`${e.childName} is born`);
+            eventLog.push(msg('{name} is born', { name: e.childName }));
           } else {
-            eventLog.push(`${e.childName} (age ${Math.floor((mi - born) / 12)}) is included`);
+            eventLog.push(msg('{name} (age {age}) is included', { name: e.childName, age: Math.floor((mi - born) / 12) }));
           }
           return;
         }
         case 'retire': {
           for (const p of people) if (e.personId === 'all' || p.id === e.personId) retire(p, mi);
-          eventLog.push(`${e.name}: retirement`);
+          eventLog.push(msg('{name}: retirement', { name: e.name }));
           return;
         }
         case 'setSalary': {
@@ -549,13 +546,13 @@ export function simulate({ household, settings, scenario }: SimulationInput): Si
           if (p) {
             p.salaryBase = e.netSalary;
             p.salaryBaseIndex = mi;
-            eventLog.push(`${p.name}'s take-home pay set to ${fmt(e.netSalary)} (today's money)`);
+            eventLog.push(msg("{name}: take-home pay now {amount} (today's money)", { name: p.name, amount: fmt(e.netSalary) }));
           }
           return;
         }
         case 'setRent':
           rent = e.rent;
-          eventLog.push(e.rent > 0 ? `Rent now ${fmt(e.rent)} (today's money)` : 'Stopped renting');
+          eventLog.push(e.rent > 0 ? msg("Rent now {amount} (today's money)", { amount: fmt(e.rent) }) : msg('Stopped renting'));
           return;
         case 'oneOff': {
           const v = e.amount * (e.real ? c : 1);
@@ -565,19 +562,19 @@ export function simulate({ household, settings, scenario }: SimulationInput): Si
           } else {
             addExpense(e.name, v);
           }
-          eventLog.push(`${e.name}: ${e.flowKind === 'income' ? '+' : '−'}${fmt(v)}`);
+          eventLog.push(msg('{name}: {amount}', { name: e.name, amount: `${e.flowKind === 'income' ? '+' : '−'}${fmt(v)}` }));
           return;
         }
         case 'recurring': {
           const end = e.months > 0 ? addMonths(d, e.months - 1) : undefined;
           flows.push({ name: e.name, kind: e.flowKind, amount: e.amount, indexed: e.indexed, start: d, end });
-          eventLog.push(`${e.name} starts`);
+          eventLog.push(msg('{name} starts', { name: e.name }));
           return;
         }
         case 'overpay': {
           const loan = loans.get(e.loanId);
           if (!loan) {
-            warn(`"${e.name}": loan not found (maybe not taken yet in this scenario).`);
+            warn(msg('“{name}”: loan not found (maybe not taken yet in this scenario).', { name: e.name }));
             return;
           }
           overpays.push({
@@ -588,20 +585,20 @@ export function simulate({ household, settings, scenario }: SimulationInput): Si
             monthsLeft: e.monthly ? (e.months > 0 ? e.months : Infinity) : 1,
             strategy: e.strategy,
           });
-          eventLog.push(`${e.name} starts`);
+          eventLog.push(msg('{name} starts', { name: e.name }));
           return;
         }
         case 'loanRate': {
           const loan = loans.get(e.loanId);
           if (loan) {
             changeRate(loan.state, e.rate);
-            eventLog.push(`${loan.name}: rate now ${(e.rate * 100).toFixed(2)}%`);
+            eventLog.push(msg('{loan}: interest rate now {rate}', { loan: loan.name, rate: pctText(e.rate, 2) }));
           }
           return;
         }
         case 'setAllocation':
           surplusRule = e.surplus.slice();
-          eventLog.push(`${e.name}: savings allocation changed`);
+          eventLog.push(msg('{name}: savings split changed', { name: e.name }));
           return;
       }
     }
@@ -624,7 +621,7 @@ export function simulate({ household, settings, scenario }: SimulationInput): Si
         goods.delete(gid);
         if (proceeds >= 0) deposit(cash, proceeds);
         else taxPaid += payFrom(-proceeds, []).tax;
-        eventLog.push(`Sold old ${g.name} for ${fmt(g.value)}`);
+        eventLog.push(msg('Sold the old {name} for {amount}', { name: g.name, amount: fmt(g.value) }));
       }
       const price = e.priceReal ? e.price * c : e.price;
       const depreciation = clamp01(e.depreciation);
@@ -648,7 +645,7 @@ export function simulate({ household, settings, scenario }: SimulationInput): Si
           runningCosts: e.runningCosts,
           sourceEvent: e.id,
         });
-        eventLog.push(`Leased ${e.name}: ${fmt(initial)} upfront + ${fmt(monthly)}/month for ${f.termMonths} months`);
+        eventLog.push(msg('Leased {name}: {initial} upfront + {monthly}/month for {months} months', { name: e.name, initial: fmt(initial), monthly: fmt(monthly), months: f.termMonths }));
       } else {
         let principal = 0;
         let commission = 0;
@@ -680,10 +677,16 @@ export function simulate({ household, settings, scenario }: SimulationInput): Si
           });
           labels[lid] = `Loan: ${e.name}`;
           eventLog.push(
-            `Bought ${e.name} for ${fmt(price)} with a loan of ${fmt(principal)} (${fmt(annuityPayment(principal, f.rate, f.termMonths))}/month)`,
+            msg('Bought {name} for {price} with a loan of {loan} ({monthly}/month)', {
+              name: e.name,
+              price: fmt(price),
+              loan: fmt(principal),
+              monthly: fmt(annuityPayment(principal, f.rate, f.termMonths)),
+            }),
           );
         } else {
-          eventLog.push(`Bought ${e.name} for ${fmt(price)} in cash` + (tax > EPS ? ` (tax on sold investments ${fmt(tax)})` : ''));
+          eventLog.push(msg('Bought {name} for {price} in cash', { name: e.name, price: fmt(price) }));
+          if (tax > EPS) eventLog.push(msg('Tax on investments sold to pay for it: {tax}', { tax: fmt(tax) }));
         }
       }
       if (e.repeatYears > 0) {
@@ -719,7 +722,10 @@ export function simulate({ household, settings, scenario }: SimulationInput): Si
 
   if (firstShortfall) {
     warnings.push(
-      `Money runs out in ${firstShortfall}: every account is empty and bills are unpaid in ${shortfallMonths} month(s) (shown as shortfall, no interest charged).`,
+      msg('Money runs out in {date}: every account is empty and bills go unpaid for {months} months in total (shown as shortfall, no interest charged).', {
+        date: firstShortfall,
+        months: shortfallMonths,
+      }),
     );
   }
   return { scenarioId: scenario.id, months, labels, retirements, warnings };
@@ -842,7 +848,7 @@ export function simulate({ household, settings, scenario }: SimulationInput): Si
     taxPaid: number,
     netCashFlow: number,
     eventCosts: Record<string, number>,
-    eventLog: string[],
+    eventLog: LogEntry[],
     debtRepaid = 0,
     eventOutflows = 0,
   ): MonthSnapshot {
@@ -913,6 +919,18 @@ function rateAtStart(a: Account, start: YearMonth): number {
     }
   }
   return rate;
+}
+
+/**
+ * A message for the event log or warnings. `k` is the English template and doubles as the
+ * translation key; `p` fills its {placeholders}.
+ */
+function msg(k: string, p?: Record<string, string | number>): LogEntry {
+  return p ? { k, p } : { k };
+}
+
+function pctText(v: number, digits: number): string {
+  return `${(v * 100).toFixed(digits)}%`;
 }
 
 function clamp01(v: number): number {

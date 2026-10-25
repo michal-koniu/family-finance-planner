@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { isValidYM } from '../engine/dates';
+import { useI18n } from '../i18n';
 
 interface FieldProps {
   label: ReactNode;
@@ -102,11 +103,12 @@ export function Select<T extends string>({ label, value, onChange, options, hint
   options: { value: T; label: string }[];
   hint?: ReactNode;
 }) {
+  const { t } = useI18n();
   const known = options.some((o) => o.value === value);
   return (
     <Field label={label} hint={hint}>
       <select className="input" value={value} onChange={(e) => onChange(e.target.value as T)}>
-        {!known && <option value={value}>— choose —</option>}
+        {!known && <option value={value}>{t('— choose —')}</option>}
         {options.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}
@@ -176,6 +178,7 @@ export function ConfirmButton({ children, onConfirm, className = 'btn danger' }:
   onConfirm: () => void;
   className?: string;
 }) {
+  const { t } = useI18n();
   const [armed, setArmed] = useState(false);
   useEffect(() => {
     if (!armed) return;
@@ -193,7 +196,7 @@ export function ConfirmButton({ children, onConfirm, className = 'btn danger' }:
         } else setArmed(true);
       }}
     >
-      {armed ? 'Click again to confirm' : children}
+      {armed ? t('Click again to confirm') : children}
     </button>
   );
 }

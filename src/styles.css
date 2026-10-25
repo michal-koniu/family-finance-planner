@@ -395,6 +395,60 @@ label.check input {
   border-radius: 2px;
 }
 
+.lang-pick {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink-2);
+  border-radius: 8px;
+  padding: 3px 4px;
+  font-size: 13px;
+  min-height: 30px;
+}
+.icon-btn {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink-2);
+  border-radius: 8px;
+  width: 32px;
+  min-height: 30px;
+  font-size: 15px;
+  cursor: pointer;
+}
+.data-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.badge.example {
+  background: var(--warn-bg);
+}
+.badge.own {
+  background: var(--good-bg);
+  color: var(--good);
+}
+@media (max-width: 420px) {
+  .topbar {
+    gap: 6px;
+  }
+  .topbar h1 {
+    font-size: 15px;
+  }
+  .sync {
+    padding: 3px 6px;
+  }
+}
 .sync {
   font-size: 12px;
   border-radius: 999px;
